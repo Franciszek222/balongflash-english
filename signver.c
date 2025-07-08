@@ -1,6 +1,6 @@
 // 
 
-// Процедуры обработки цифровых подписей
+// Digital signatures processing procedures
 // 
 #include <stdio.h>
 #include <stdint.h>
@@ -27,7 +27,7 @@
 #include "util.h"
 #include "zlib.h"
 
-// таблица параметров ключа -g
+// Key parameters table -g
 
 struct {
   uint8_t type;
@@ -44,7 +44,7 @@ struct {
 
 #define signbaselen 6
 
-// таблица типов подписей
+// Signature types table
 char* fwtypes[]={
 "UNKNOWN",        // 0
 "ONLY_FW",        // 1
@@ -57,26 +57,26 @@ char* fwtypes[]={
 };  
 
 
-// результирующая строка ^signver-команды
+// The resulting line ^signver teams
 uint8_t signver[200];
 
-// Флаг режима цифровой подписи
+// Digital signature
 extern int gflag;
 
-// Флаг типа прошивки
+// Firmware type flag
 extern int dflag;
 
-// Параметры текущей цифровой подписи
-uint32_t signtype; // тип прошивки
-uint32_t signlen;  // длина подписи
+// Parameters of the current digital signature
+uint32_t signtype; // Type of firmware
+uint32_t signlen;  // The length of the signature
 
 int32_t serach_sign();
 
-// Хеш открытого ключа для ^signver
+// Hesh open key for ^signver
 char signver_hash[100]="778A8D175E602B7B779D9E05C330B5279B0661BF2EED99A20445B366D63DD697";
 
 //****************************************************
-//* Получение описания типа прошивки по коду
+//*Obtaining a description of the type of firmware by code
 //****************************************************
 char* fw_description(uint8_t code) {
   
@@ -84,13 +84,13 @@ return fwtypes[code&0x7];
 }
 
 //****************************************************
-//* Получение списка типов прошивок
+//*Obtaining a list of types of firmware
 //****************************************************
 void dlist() {
   
 int i;
 
-printf("\n #  Описание\n--------------------------------------");
+printf("\n # Description\n--------------------------------------");
 for(i=1;i<8;i++) {
   printf("\n %i  %s",i,fw_description(i));
 }
@@ -99,12 +99,12 @@ exit(0);
 }
 
 //***************************************************
-//* Обработка параметров ключа -d
+//*Processing the key parameters -D
 //***************************************************
 void dparm(char* sparm) {
   
 if (dflag != 0) {
-  printf("\n Дублирующийся ключ -d\n\n");
+  printf("\n Duplicate key -d\n\n");
   exit(-1);
 }  
 
@@ -114,7 +114,7 @@ if (sparm[0] == 'l') {
 }  
 sscanf(sparm,"%x",&dload_id);
 if ((dload_id == 0) || (dload_id >7)) {
-  printf("\n Неправильное значение ключа -d\n\n");
+  printf("\nInvalid key value -d\n\n");
   exit(-1);
 }
 dflag=1;
@@ -122,21 +122,21 @@ dflag=1;
 
 
 //****************************************************
-//* Получение списка параметров ключа -g
+//*Obtaining a list of key parameters -g
 //****************************************************
 void glist() {
   
 int i;
-printf("\n #  длина  тип описание \n--------------------------------------");
+printf("\n # length type description \n--------------------------------------");
 for (i=0; i<signbaselen; i++) {
   printf("\n%1i  %5i  %2i   %s",i,signbase[i].len,signbase[i].type,signbase[i].descr);
 }
-printf("\n\n Также можно указать произвольные параметры подписи в формате:\n  -g *,type,len\n\n");
+printf("\n\n You can also specify custom signature parameters in the format:\n  -g *,type,len\n\n");
 exit(0);
 }
 
 //***************************************************
-//* Обработка параметров ключа -g
+//*Processing of the key parameters -g
 //***************************************************
 void gparm(char* sparm) {
   
@@ -146,11 +146,11 @@ char parm[100];
 
 
 if (gflag != 0) {
-  printf("\n Дублирующийся ключ -g\n\n");
+  printf("\n Duplicate key -g\n\n");
   exit(-1);
 }  
 
-strcpy(parm,sparm); // локальная копия параметров
+strcpy(parm,sparm); // Local copy of the parameters
 
 if (parm[0] == 'l') {
   glist();
@@ -158,24 +158,24 @@ if (parm[0] == 'l') {
 }  
 
 if (parm[0] == 'd') {
-  // запрет автоопределения подписи
+  // The ban on auto -determination of the signature
   gflag = -1;
   return;
 } 
 
 if (strncmp(parm,"*,",2) == 0) {
-  // произвольные параметры
-  // выделяем длину
+  // arbitrary parameters
+  // We highlight the length
   sptr=strrchr(parm,',');
   if (sptr == 0) goto perror;
   signlen=atoi(sptr+1);
   *sptr=0;
-  // выделяем тип раздела
+  // We highlight the type of section
   sptr=strrchr(parm,',');
   if (sptr == 0) goto perror;
   signtype=atoi(sptr+1);
   if (fw_description(signtype) == 0) {
-    printf("\n Ключ -g: неизвестный тип прошивки - %i\n",signtype);
+    printf("\n Switch -g: unknown firmware type - %i\n",signtype);
     exit(-1);
   }  
 }
@@ -187,43 +187,43 @@ else {
 }
 
 gflag=1;
-// printf("\nstr - %s",signver);
+// printf("\nstr -%s",signver);
 return;
 
 perror:
- printf("\n Ошибка в параметрах ключа -g\n");
+ printf("\n Error in key parameters-g\n");
  exit(-1);
 } 
   
 
 //***************************************************
-//* Отправка цифровой подписи
+//*Sending digital signature
 //***************************************************
 void send_signver() {
   
 uint32_t res;
-// ответ на ^signver
+// The answer to ^signver
 unsigned char SVrsp[]={0x0d, 0x0a, 0x30, 0x0d, 0x0a, 0x0d, 0x0a, 0x4f, 0x4b, 0x0d, 0x0a};
 uint8_t replybuf[200];
   
 if (gflag == 0) {  
-  // автоопределение цифровой подписи
+  // Authority of digital signature
   signtype=dload_id&0x7;
   signlen=serach_sign();
-  if (signlen == -1) return; // подпись в файле не найдена
+  if (signlen == -1) return; // Signature in the file is not found
 }
 
-printf("\n Режим цифровой подписи: %s (%i байт)",fw_description(signtype),signlen);
+printf("\n Digital signature mode: %s (%i байт)",fw_description(signtype),signlen);
 sprintf(signver,"^SIGNVER=%i,0,%s,%i",signtype,signver_hash,signlen);
 res=atcmd(signver,replybuf);
 if ( (res<sizeof(SVrsp)) || (memcmp(replybuf,SVrsp,sizeof(SVrsp)) != 0) ) {
-   printf("\n ! Ошибка проверки цифровой сигнатуры - %02x\n",replybuf[2]);
+   printf("\n ! Digital signature verification error - %02x\n",replybuf[2]);
    exit(-2);
 }
 }
 
 //***************************************************
-//* Поиск цифровой подписи в прошивке
+//*Search for digital signature in the firmware
 //***************************************************
 int32_t serach_sign() {
 
@@ -235,15 +235,15 @@ for (i=0;i<2;i++) {
   if (i == npart) break;
   pt=*((uint32_t*)&ptable[i].pimage[ptable[i].hd.psize-4]);
   if (pt == 0xffaaaffa) { 
-    // подпись найдена
+    // The signature is found
     signsize=*((uint32_t*)&ptable[i].pimage[ptable[i].hd.psize-12]);
-    // выделяем хеш открытого ключа
+    // We highlight the hash of the open key
     for(j=0;j<32;j++) {
      sprintf(signver_hash+2*j,"%02X",ptable[i].pimage[ptable[i].hd.psize-signsize+6+j]);
     }
     return signsize;
   }
 }
-// не найдена
+// Not found
 return -1;
 }

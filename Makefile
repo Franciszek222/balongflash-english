@@ -15,4 +15,4 @@ balong_flash: balong_flash.o hdlcio_linux.o ptable.o flasher.o util.o signver.o 
 	@gcc $^ -o $@ $(LIBS) 
 	@echo Current buid: $(BUILDNO)
 	@echo $$((`cat build`+1)) >build
-	
+	chmod +x balong_flash
