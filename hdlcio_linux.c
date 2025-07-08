@@ -1,4 +1,5 @@
-//  Низкоуровневые процедуры работы с последовательным портом и HDLC
+//  Low -level procedures for working with a sequential port and HDLC
+
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -18,38 +19,47 @@ unsigned int nand_cmd=0x1b400000;
 unsigned int spp=0;
 unsigned int pagesize=0;
 unsigned int sectorsize=512;
-unsigned int maxblock=0;     // Общее число блоков флешки
+unsigned int maxblock=0;     // The total number of flash drive blocks
+
 char flash_mfr[30]={0};
 char flash_descr[30]={0};
 unsigned int oobsize=0;
 
-static char pdev[500]; // имя последовательного порта
+static char pdev[500]; // The name of the sequential port
 
-int siofd; // fd для работы с Последовательным портом
+
+int siofd; // FD for working with a sequential port
+
 struct termios sioparm;
-//int siofd; // fd для работы с Последовательным портом
+//int siofd; //FD for working with a sequential port
+
 
 //*************************************************
-//*    отсылка буфера в модем
+//*Boofer reference to the modem
 //*************************************************
+
 unsigned int send_unframed_buf(char* outcmdbuf, unsigned int outlen) {
 
 
-tcflush(siofd,TCIOFLUSH);  // сбрасываем недочитанный буфер ввода
+tcflush(siofd,TCIOFLUSH);  // We drop an unreasonable input buffer
 
-write(siofd,"\x7e",1);  // отсылаем префикс
 
-if (write(siofd,outcmdbuf,outlen) == 0) {   printf("\n Ошибка записи команды");return 0;  }
-tcdrain(siofd);  // ждем окончания вывода блока
+write(siofd,"\x7e",1);  // We send the prefix
+
+
+if (write(siofd,outcmdbuf,outlen) == 0) {   printf("\n Command write error");return 0;  }
+tcdrain(siofd);  // We are waiting for the end of the block output
+
 
 return 1;
 }
 
 //******************************************************************************************
-//* Прием буфера с ответом из модема
+//*Reception of the buffer with the answer from the modem
 //*
-//*  masslen - число байтов, принимаемых единым блоком без анализа признака конца 7F
+//*Masslen -the number of bytes taken by a single block without analysis of the end of the end of 7f
 //******************************************************************************************
+
 
 unsigned int receive_reply(char* iobuf, int masslen) {
   
@@ -60,36 +70,44 @@ unsigned char replybuf[14000];
 
 incount=0;
 if (read(siofd,&c,1) != 1) {
-//  printf("\n Нет ответа от модема");
-  return 0; // модем не ответил или ответил неправильно
+//  Printf ("\n there is no answer from the modem");
+
+  return 0; // The modem did not answer or answered incorrectly
+
 }
-//if (c != 0x7e) {
-//  printf("\n Первый байт ответа - не 7e: %02x",c);
-//  return 0; // модем не ответил или ответил неправильно
+//if (c! = 0x7e) {
+//  Printf ("\ n the first byte of the answer -not 7E: %02x", C);
+//  Return 0; //modem did not answer or answered incorrectly
 //}
+
 replybuf[incount++]=c;
 
-// чтение массива данных единым блоком при обработке команды 03
+// Reading the array of data by a single block when processing command 03
+
 if (masslen != 0) {
  res=read(siofd,replybuf+1,masslen-1);
  if (res != (masslen-1)) {
-   printf("\nСлишком короткий ответ от модема: %i байт, ожидалось %i байт\n",res+1,masslen);
+   printf("\nResponse from modem too short: %i bytes, expected %i bytes\n",res+1,masslen);
    dump(replybuf,res+1,0);
    return 0;
  }  
- incount+=masslen-1; // у нас в буфере уже есть masslen байт
-// printf("\n ------ it mass --------");
-// dump(replybuf,incount,0);
+ incount+=masslen-1; // We already have a masslen byte in the buffer
+// printf ("\ n ------it mass -------");
+// DUMP (Replybuf, Incount, 0);
+
 }
 
-// принимаем оставшийся хвост буфера
+// we take the remaining tail of the buffer
+
 while (read(siofd,&c,1) == 1)  {
  replybuf[incount++]=c;
-// printf("\n-- %02x",c);
+// printf("\n--%02x",c);
+
  if (c == 0x7e) break;
 }
 
-// Преобразование принятого буфера для удаления ESC-знаков
+// Transformation of the accepted buffer to remove ESC signs
+
 escflag=0;
 iolen=0;
 for (i=0;i<incount;i++) { 
@@ -113,8 +131,9 @@ return iolen;
 }
 
 //***********************************************************
-//* Преобразование командного буфера с Escape-подстановкой
+//*Transformation of a command buffer with an Escape composure
 //***********************************************************
+
 unsigned int convert_cmdbuf(char* incmdbuf, int blen, char* outcmdbuf) {
 
 int i,iolen,bcnt;
@@ -122,13 +141,16 @@ unsigned char cmdbuf[14096];
 
 bcnt=blen;
 memcpy(cmdbuf,incmdbuf,blen);
-// Вписываем CRC в конец буфера
+// We enter CRC in the end of the buffer
+
 *((unsigned short*)(cmdbuf+bcnt))=crc16(cmdbuf,bcnt);
 bcnt+=2;
 
-// Пребразование данных с экранированием ESC-последовательностей
+// Comment of data with shielding ESC sequences
+
 iolen=0;
-outcmdbuf[iolen++]=cmdbuf[0];  // первый байт копируем без модификаций
+outcmdbuf[iolen++]=cmdbuf[0];  // The first byte is copying without modifications
+
 for(i=1;i<bcnt;i++) {
    switch (cmdbuf[i]) {
      case 0x7e:
@@ -145,27 +167,31 @@ for(i=1;i<bcnt;i++) {
        outcmdbuf[iolen++]=cmdbuf[i];
    }
  }
-outcmdbuf[iolen++]=0x7e; // завершающий байт
+outcmdbuf[iolen++]=0x7e; // The final byte
+
 outcmdbuf[iolen]=0;
 return iolen;
 }
 
 //***************************************************
-//*  Отсылка команды в порт и получение результата  *
+//*Sending the team to the port and obtaining the result *
 //***************************************************
+
 int send_cmd(unsigned char* incmdbuf, int blen, unsigned char* iobuf) {
   
 unsigned char outcmdbuf[14096];
 unsigned int  iolen;
 
 iolen=convert_cmdbuf(incmdbuf,blen,outcmdbuf);  
-if (!send_unframed_buf(outcmdbuf,iolen)) return 0; // ошибка передачи команды
+if (!send_unframed_buf(outcmdbuf,iolen)) return 0; // Team transmission error
+
 return receive_reply(iobuf,0);
 }
 
 //***************************************************
-// Открытие и настройка последовательного порта
+// Opening and setting up a sequential port
 //***************************************************
+
 
 int open_port(char* devname) {
 
@@ -174,68 +200,83 @@ int i,dflag=1;
 char devstr[200]={0};
 
 
-if (strlen(devname) != 0) strcpy(pdev,devname);   // сохраняем имя порта  
-else strcpy(devname,"/dev/ttyUSB0");  // если имя порта не было задано
+if (strlen(devname) != 0) strcpy(pdev,devname);   // We keep the name of the port  
 
-// Вместо полного имени устройства разрешается передавать только номер ttyUSB-порта
+else strcpy(devname,"/dev/ttyUSB0");  // If the port name was not set
 
-// Проверяем имя устройства на наличие нецифровых символов
+
+// Instead of the full name of the device, it is allowed to transmit only the TTYUSB port number
+
+
+// Check the name of the device for the presence of non -constituent characters
+
 for(i=0;i<strlen(devname);i++) {
   if ((devname[i]<'0') || (devname[i]>'9')) dflag=0;
 }
-// Если в строке - только цифры, добавляем префикс /dev/ttyUSB
+// If in the line -only numbers, add the prefix /dev /ttyusb
+
 
 if (dflag) strcpy(devstr,"/dev/ttyUSB");
 
-// копируем имя устройства
+// Copy the name of the device
+
 strcat(devstr,devname);
 
 siofd = open(devstr, O_RDWR | O_NOCTTY |O_SYNC);
 if (siofd == -1) {
-  printf("\n! - Последовательный порт %s не открывается\n", devname); 
+  printf("\n! -Serial port %s cannot be opened\n", devname); 
   exit(0);
 }
-bzero(&sioparm, sizeof(sioparm)); // готовим блок атрибутов termios
+bzero(&sioparm, sizeof(sioparm)); // Preparing the Termios attribute block
+
 sioparm.c_cflag = B115200 | CS8 | CLOCAL | CREAD ;
-sioparm.c_iflag = 0;  // INPCK;
+sioparm.c_iflag = 0;  // Inpck;
+
 sioparm.c_oflag = 0;
 sioparm.c_lflag = 0;
-sioparm.c_cc[VTIME]=30; // timeout  
+sioparm.c_cc[VTIME]=30; // Timeout  
+
 sioparm.c_cc[VMIN]=0;  
 tcsetattr(siofd, TCSANOW, &sioparm);
 
-tcflush(siofd,TCIOFLUSH);  // очистка выходного буфера
+tcflush(siofd,TCIOFLUSH);  // Cleaning the output buffer
+
 
 return 1;
 }
 
 
 //*************************************
-// Настройка времени ожидания порта
+// Port waiting time setup
 //*************************************
+
 
 void port_timeout(int timeout) {
 
-bzero(&sioparm, sizeof(sioparm)); // готовим блок атрибутов termios
+bzero(&sioparm, sizeof(sioparm)); // Preparing the Termios attribute block
+
 sioparm.c_cflag = B115200 | CS8 | CLOCAL | CREAD ;
-sioparm.c_iflag = 0;  // INPCK;
+sioparm.c_iflag = 0;  // Inpck;
+
 sioparm.c_oflag = 0;
 sioparm.c_lflag = 0;
-sioparm.c_cc[VTIME]=timeout; // timeout  
+sioparm.c_cc[VTIME]=timeout; // Timeout  
+
 sioparm.c_cc[VMIN]=0;  
 tcsetattr(siofd, TCSANOW, &sioparm);
 }
 
 //*************************************************
-//*  Поиск файла по номеру в указанном каталоге
+//*Search for a file by number in the specified catalog
 //*
-//* num - # файла
-//* filename - буфер для полного имени файла
-//* id - переменная, в которую будет записан идентификатор раздела
+//*num -# file
+//*Filename -Boofer for the full file name
+//*ID -a variable in which the section identifier will be recorded
 //*
-//* return 0 - не найдено
-//*        1 - найдено
+//*return 0 -not found
+//*1 -found
 //*************************************************
+
 int find_file(int num, char* dirname, char* filename,unsigned int* id, unsigned int* size) {
 
 DIR* fdir;
@@ -244,62 +285,75 @@ unsigned int pt;
 struct dirent* dentry;
 char fpattern[5];
 
-sprintf(fpattern,"%02i",num); // образец для поиска файла по 3 цифрам номера
+sprintf(fpattern,"%02i",num); // Sample for finding a file 3 numbers
+
 fdir=opendir(dirname);
 if (fdir == 0) {
-  printf("\n Каталог %s не открывается\n",dirname);
+  printf("\n Directory %s cannot be opened\n",dirname);
   exit(1);
 }
 
-// главный цикл - поиск нужного нам файла
+// The main cycle is to search for the file we need
+
 while ((dentry=readdir(fdir)) != 0) {
-  if (dentry->d_type != DT_REG) continue; // пропускаем все кроме регулярных файлов
-  if (strncmp(dentry->d_name,fpattern,2) == 0) break; // нашли нужный файл. Точнее, файл с нужными 3 цифрами в начале имени.
+  if (dentry->d_type != DT_REG) continue; // We miss everything except regular files
+
+  if (strncmp(dentry->d_name,fpattern,2) == 0) break; // Found the desired file. More precisely, a file with the required 3 digits at the beginning of the name.
+
 }
 
 closedir(fdir);
-// формируем полное имя файла в буфере результата
-if (dentry == 0) return 0; // не нашли
+// We form the full file name in the result of the result
+
+if (dentry == 0) return 0; // Not found
+
 strcpy(filename,dirname);
 strcat(filename,"/");
-// копируем имя файла в буфер результата
+// Copy the file name in the result of the result
+
 strcat(filename,dentry->d_name);  
 
-// 00-00000200-M3Boot.bin
-//проверяем имя файла на наличие знаков '-'
+// 00-00000200-m3boot.bin
+//Check the file name for the presence of signs '-'
+
 if ((dentry->d_name[2] != '-') || (dentry->d_name[11] != '-')) {
-  printf("\n Неправильный формат имени файла - %s\n",dentry->d_name);
+  printf("\n Incorrect file name format- %s\n",dentry->d_name);
   exit(1);
 }
 
-// проверяем цифровое поле ID раздела
+// Check the digital field of the ID section
+
 if (strspn(dentry->d_name+3,"0123456789AaBbCcDdEeFf") != 8) {
-  printf("\n Ошибка в идентификаторе раздела - нецифровой знак - %s\n",filename);
+  printf("\n Error in section identifier - non-numeric character - %s\n",filename);
   exit(1);
 }  
 sscanf(dentry->d_name+3,"%8x",id);
 
-// Проверяем доступность и читаемость файла
+// Check the availability and readability of the file
+
 in=fopen(filename,"r");
 if (in == 0) {
-  printf("\n Ошибка открытия файла %s\n",filename);
+  printf("\n Error opening file %s\n",filename);
   exit(1);
 }
 if (fread(&pt,1,4,in) != 4) {
-  printf("\n Ошибка чтения файла %s\n",filename);
+  printf("\n Error reading file %s\n",filename);
   exit(1);
 }
   
-// проверяем, что файл - сырой образ, без заголовка
+// Check that the file is a raw image, without a title
+
 if (pt == 0xa55aaa55) {
-  printf("\n Файл %s имеет заголовок - для прошивки не подходит\n",filename);
+  printf("\nFile %s has a header - not suitable for flashing\n",filename);
   exit(1);
 }
 
 
-// Что еще можно проверить? Пока не придумал.  
+// What else can you check? I have not come up with it yet.  
 
-//  Получаем размер файла
+
+//  We get the file size
+
 fseek(in,0,SEEK_END);
 *size=ftell(in);
 fclose(in);
@@ -308,13 +362,14 @@ return 1;
 }
 
 //****************************************************
-//*  Отсылка модему АТ-команды
+//*Demonial to the AT-Komanda Modem
 //*  
-//* cmd - буфер с командой
-//* rbuf - буфер для записи ответа
+//*CMD -team buffer
+//*rbuf -Boofer for recording response
 //*
-//* Возвращает длину ответа
+//*Returns the length of the answer
 //****************************************************
+
 int atcmd(char* cmd, char* rbuf) {
 
 int res;
@@ -325,14 +380,17 @@ strcat(cbuf,cmd);
 strcat(cbuf,"\r");
 
 port_timeout(100);
-// Вычищаем буфер приемника и передатчика
+// We clean the boiler of the receiver and transmitter
+
 tcflush(siofd,TCIOFLUSH);
 
-// отправка команды
+// Sending the team
+
 write(siofd,cbuf,strlen(cbuf));
 usleep(100000);
 
-// чтение результата
+// Reading the result
+
 res=read(siofd,rbuf,200);
 return res;
 }
